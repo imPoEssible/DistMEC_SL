@@ -57,6 +57,7 @@ def sort_server_results(arms_list, Servers, Users):
     reserve_time_dict = {}
     reward_dict = {}
     collision_flag_dict = {}
+    random_serve_dict = {}
 
     for s in range(len(Servers)):
         usr_idxs = np.argwhere(np.array(arms_list) == s).flatten()
@@ -74,18 +75,21 @@ def sort_server_results(arms_list, Servers, Users):
         stay_times_list = stay_times.tolist()
 
         s_result = Servers[s].receive_users(user_list, scales_list, w_est_list, stay_times_list, len(Users))
-        reserve_id, reserve_max_val, reserve_time, reward, collision_flag = s_result[0],s_result[1],s_result[2],s_result[3],s_result[4]
+        reserve_id, reserve_max_val, reserve_time  = s_result[0],s_result[1],s_result[2]
+        reward, collision_flag, random_serve_idx = s_result[3],s_result[4], s_result[5]
+        
         reserve_id_dict[s] = reserve_id
         reserve_max_val_dict[s] = reserve_max_val
         reserve_time_dict[s] = reserve_time
         reward_dict[s] = reward
         collision_flag_dict[s] = collision_flag
+        random_serve_dict[s] = random_serve_idx
     
-    return reserve_id_dict,reserve_max_val_dict ,reserve_time_dict ,reward_dict , collision_flag_dict
+    return reserve_id_dict,reserve_max_val_dict ,reserve_time_dict ,reward_dict , collision_flag_dict, random_serve_dict
 
 
 def update_user_info(Users, arms_list, reserve_id_dict,reserve_max_val_dict ,
-                     reserve_time_dict ,reward_dict ,collision_flag_dict, reservation_mode = True):
+                     reserve_time_dict ,reward_dict ,collision_flag_dict, random_serve_dict, reservation_mode = True):
     # update UCB information from user 
     for u in range(len(Users)):
         arm_id = arms_list[u]
@@ -94,8 +98,9 @@ def update_user_info(Users, arms_list, reserve_id_dict,reserve_max_val_dict ,
         max_reward = reserve_max_val_dict[arm_id]
         wait_time = reserve_time_dict[arm_id]
         chosen_idx = reserve_id_dict[arm_id]
+        random_served_idx = random_serve_dict[arm_id]
         Users[u].receive_reward(arm_id, reward, collision_flag, max_reward, wait_time, 
-                                chosen_idx, reservation_mode)
+                                chosen_idx, random_served_idx, reservation_mode)
     return
 
 
@@ -144,7 +149,7 @@ def explore_rounds(Users, num_users, Servers, mu, regret, collision_count,
             regret[j*(num_svrs) + i] = optimal[1] - reward_exp_now
 
             svr_res = sort_server_results(arms, Servers, Users)
-            update_user_info(Users, arms, svr_res[0], svr_res[1], svr_res[2], svr_res[3], svr_res[4])
+            update_user_info(Users, arms, svr_res[0], svr_res[1], svr_res[2], svr_res[3], svr_res[4], svr_res[5])
             if usr_move_flag:
                 update_user_locs(Users)
 
@@ -176,8 +181,8 @@ def play_round(Users, Servers, mu, regret, collision_count,
     reward_exp_now, collision_count[t] = expected_reward_collision_sensing(arms, mu, w)
     regret[t] = optimal[1] - reward_exp_now
     svr_res = sort_server_results(arms, Servers, Users)
-    update_user_info(Users, arms, svr_res[0], svr_res[1], svr_res[2], svr_res[3], svr_res[4],
-                     reservation_mode)
+    update_user_info(Users, arms, svr_res[0], svr_res[1], svr_res[2], svr_res[3], svr_res[4], 
+                     svr_res[5], reservation_mode)
     if usr_move_flag:
         update_user_locs(Users)
             

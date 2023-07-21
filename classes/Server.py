@@ -9,7 +9,6 @@ class Server():
     def receive_users(self, user_list, scales_list, w_est_list, stay_times_list, num_users):
         
         
-        
         # if 1 pull
         if len(user_list) == 1:
             reserve_id = user_list[0]
@@ -18,6 +17,8 @@ class Server():
             reserve_max_val = scales_list[0]* w_est_list[0]
             reserve_time = stay_times_list[0]
             collision_flag = False
+            random_serve_idx = user_list[0]
+            
         elif len(user_list) > 1:
             collision_flag = True
             reward = np.zeros(num_users)
@@ -27,15 +28,16 @@ class Server():
                 reserve_max_val_list[i] = scales_list[i] * w_est_list[i]
             
             chosen_idx = np.random.choice(np.flatnonzero(reserve_max_val_list == reserve_max_val_list.max()))
-#             print(chosen_idx)
-            
+#             print(chosen_idx)    
             reserve_id = user_list[(chosen_idx)]
             reserve_max_val = reserve_max_val_list[(chosen_idx)]
             reserve_time = stay_times_list[(chosen_idx)]
-            
+            random_serve_idx = np.random.choice(user_list)
                 
         else: # no users pull this arm
-            reserve_id, reserve_max_val, reserve_time, reward, collision_flag = None, None, None, None, False
+            reserve_id, reserve_max_val, reserve_time =  None, None, None
+            reward, collision_flag, random_serve_idx =  None, False, None
             
         
-        return reserve_id, reserve_max_val, reserve_time, reward, collision_flag
+        
+        return reserve_id, reserve_max_val, reserve_time, reward, collision_flag, random_serve_idx

@@ -62,6 +62,7 @@ class User():
         self.history_reward = []
         self.history_collisions = []
         self.history_reserve = []
+        self.random_serve_select = []
     
     def make_P(self, threshold_dist, self_weight):
         # Creating Markov Transition Probability Matrix 
@@ -144,11 +145,9 @@ class User():
     def get_scales(self,max_dist):
         # Mapping reward to [0,1] based on distance and max acceptable distance
         
-        reward_scale = np.ones(self.reward_dists.shape) - self.reward_dists/max_dist
-        reward_scale[reward_scale < 0] = 0
-        
+        reward_scale = np.where(self.reward_dists <= max_dist, 1, 0)
         return reward_scale
-    
+            
     def init_loc(self):
         # Initial location user takes 
         curr_loc = np.random.randint(0, len(self.locs)-1)
@@ -224,7 +223,7 @@ class User():
         return arm_id
     
     def receive_reward(self, arm_id, reward, collision_flag, max_reward, wait_time, chosen_idx,
-                       reservation_mode = True):
+                       random_served_idx, reservation_mode = True):
 
         scale = self.reward_scale[self.usr_place,arm_id] + 0.001
         self.pulls[arm_id] += 1
@@ -259,6 +258,11 @@ class User():
         self.history_reward += [reward]
         self.history_collisions += [collision_flag]
         self.history_reserve += [(self.svr_stick_idx is not None)]
+        
+        if random_served_idx == self.idx:
+            self.random_serve_select += [True]
+        else:
+            self.random_serve_select += [False]
         
     
     def update_waittime(self, arm_id, wait_time, max_reward):
