@@ -73,7 +73,7 @@ def offline_optimal_action(W, mu):
     
     return new_action, rwd
 
-def pull_super_arm(arms, mus, rewards_record, pulls_record ):
+def pull_super_arm(arms, mus, rewards_record, pulls_record):
     """
     arms - u x 1, vector, ith-element is user i, indicates which arm they will pull
     return - rewards of each arm drawn from bernoulli distribution 

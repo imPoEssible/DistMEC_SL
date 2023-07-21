@@ -10,6 +10,7 @@ helper functions to generate simulation testbed, and run rounds of reservation b
 import numpy as np
 import itertools
 from classes.solver import *
+import pdb
 # from classes.Server import *
 
 def gen_eq_locs(space_1d, nums, offset = 0.5):
@@ -105,14 +106,18 @@ def update_user_info(Users, arms_list, reserve_id_dict,reserve_max_val_dict ,
 
 
 def expected_reward_collision_sensing(arms, mus, w):
-    exp_mus = np.zeros(len(arms))
+    exp_mus = np.zeros(len(arms)) # arms - each element is user, and value is server they pull
     collision_counter = 0
-    seen = []
+    
     for i in range(len(arms)):
         num_simul_pulls = np.argwhere(np.array(arms)==arms[i]).flatten().shape[0]
         if num_simul_pulls == 1:
             exp_mus[i] = w[i, arms[i]]* mus[i, arms[i]]
-        else:
+        else:            
+            # Randomly select one user to receive the reward and distribute it among all simultaneous pulls
+            reward = 1 / num_simul_pulls * w[i, arms[i]] * mus[i, arms[i]]
+#             for j in np.argwhere(np.array(arms) == arms[i]).flatten():
+            exp_mus[i] += reward
             collision_counter += 1
         
     return np.sum(exp_mus), collision_counter

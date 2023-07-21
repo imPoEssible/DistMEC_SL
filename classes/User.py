@@ -357,6 +357,7 @@ class GoT_User(User):
         self.history_pull = []
         self.history_reward = []
         self.history_collisions = []
+        self.random_serve_select = []
         
     def set_epochs(self):
         
@@ -427,7 +428,7 @@ class GoT_User(User):
         return arm_id
     
     def receive_reward(self, arm_id, reward, collision_flag, max_reward, wait_time, chosen_idx,
-                       reservation_mode = False):
+                       random_served_idx, reservation_mode = False):
 
         phase = self.phase_time_mapping[self.t]
 #         scale = self.stationary_reward_scale[arm_id]
@@ -464,6 +465,11 @@ class GoT_User(User):
         self.history_pull += [arm_id]
         self.history_reward += [reward]
         self.history_collisions += [collision_flag]
+        
+        if random_served_idx == self.idx:
+            self.random_serve_select += [True]
+        else:
+            self.random_serve_select += [False]
         
         self.advance_time()
         
