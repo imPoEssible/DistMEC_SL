@@ -7,7 +7,7 @@ class User():
 
     def __init__(self, locs, svr_locs, mu, idx, 
                  max_dist = 7, threshold_dist = 6, self_weight = 0.5, P = None, ceiling = 10,
-                 sticky_mode = True, kick_mode = True):
+                 sticky_mode = True, kick_mode = True, data_mu = None):
         """
         ceiling = max number of reservation time step
         sticky_mode = stick with same arm for set number of time steps once reserved
@@ -34,6 +34,11 @@ class User():
             self.P = self.make_P(threshold_dist, self_weight)
         else:
             self.P = P
+            
+        if data_mu is None:
+            self.data_mu = 1
+        else:
+            self.data_mu = data_mu
             
         self.reward_dists = self.get_reward_dists()
         self.reward_scale = self.get_scales(max_dist)
@@ -63,6 +68,7 @@ class User():
         self.history_collisions = []
         self.history_reserve = []
         self.random_serve_select = []
+        self.history_dist_scale = []
     
     def make_P(self, threshold_dist, self_weight):
         # Creating Markov Transition Probability Matrix 
@@ -204,9 +210,9 @@ class User():
         
         if self.svr_stick_idx is None:
             if self.mode is "blind": 
-                ucb_scaled =  self.reward_scale[self.usr_place] * self.ucb_raw
+                ucb_scaled =  self.reward_scale[self.usr_place] * self.ucb_raw * self.data_mu
             else:
-                ucb_scaled = self.reward_scale[self.usr_place] * self.mu
+                ucb_scaled = self.reward_scale[self.usr_place] * self.mu * self.data_mu
 
             for i in range(ucb_scaled.shape[0]):
                 if self.wait_times[i] > 0:
@@ -225,9 +231,10 @@ class User():
     def receive_reward(self, arm_id, reward, collision_flag, max_reward, wait_time, chosen_idx,
                        random_served_idx, reservation_mode = True):
 
-        scale = self.reward_scale[self.usr_place,arm_id] + 0.001
+        scale = self.reward_scale[self.usr_place,arm_id] + 0.00001
         self.pulls[arm_id] += 1
-        self.param_summed[arm_id] += reward[self.idx]/scale
+#         self.param_summed[arm_id] += reward[self.idx]/scale
+        self.param_summed[arm_id] += reward
         self.t += 1 # only update time used in UCB index when success
         self.update_ucb()
             
@@ -258,6 +265,7 @@ class User():
         self.history_reward += [reward]
         self.history_collisions += [collision_flag]
         self.history_reserve += [(self.svr_stick_idx is not None)]
+        self.history_dist_scale += [scale]
         
         if random_served_idx == self.idx:
             self.random_serve_select += [True]
@@ -287,7 +295,7 @@ class GoT_User(User):
     def __init__(self, locs, svr_locs, mu, idx, 
                  max_dist = 7, threshold_dist = 6, self_weight = 0.5, P = None,
                  c1 = 100, c2 = 600, c3 = 600, delta = 0, rho = 0.5, epsilon = 0.01,
-                 c = None, horizon = 15000):
+                 c = None, horizon = 15000, data_mu = None):
         """
         ceiling = max number of reservation time step
         sticky_mode = stick with same arm for set number of time steps once reserved
@@ -328,6 +336,11 @@ class GoT_User(User):
         else:
             self.P = P
             
+        if data_mu is None:
+            self.data_mu = 1
+        else:
+            self.data_mu = data_mu
+            
         self.reward_dists = self.get_reward_dists()
         self.reward_scale = self.get_scales(max_dist)
         self.usr_place = self.init_loc()
@@ -358,6 +371,7 @@ class GoT_User(User):
         self.history_reward = []
         self.history_collisions = []
         self.random_serve_select = []
+        self.history_dist_scale = []
         
     def set_epochs(self):
         
@@ -433,12 +447,13 @@ class GoT_User(User):
         phase = self.phase_time_mapping[self.t]
 #         scale = self.stationary_reward_scale[arm_id]
         scale = self.reward_scale[self.usr_place][arm_id]
-        constant = 0.001
+        constant = 0.00001
         
         if phase == 0: # Exploration Phase                              
             if not collision_flag:
                 self.pulls[arm_id] += 1
-                self.param_summed[arm_id] += reward[self.idx]/(scale+constant)
+#                 self.param_summed[arm_id] += reward[self.idx]/(scale+constant)
+                self.param_summed[arm_id] += reward
                 self.update_mean()
         elif phase == 1: # GoT Phase
             if arm_id == self.got_base_arm and not collision_flag and self.state == 'content':
@@ -465,6 +480,7 @@ class GoT_User(User):
         self.history_pull += [arm_id]
         self.history_reward += [reward]
         self.history_collisions += [collision_flag]
+        self.history_dist_scale += [scale]
         
         if random_served_idx == self.idx:
             self.random_serve_select += [True]

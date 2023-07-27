@@ -4,7 +4,7 @@ import itertools
 import copy
 
 # Offline optimal to calculate regret
-def offline_optimal_action(W, mu):
+def offline_optimal_action(W, mu, data_mu = None):
     
     action = np.ones_like(mu[:,0]) * -1
     
@@ -12,6 +12,10 @@ def offline_optimal_action(W, mu):
     
     num_user = mu[:,0].shape[0]
     num_server = mu[0,:].shape[0]
+    
+    if data_mu is None:
+        data_mu = np.ones(num_user)
+    
     
     prob = lp.LpProblem("prob",lp.LpMaximize)
     
@@ -48,7 +52,7 @@ def offline_optimal_action(W, mu):
     # Make objective function
     obj = 0
     for u,s in itertools.product(range(num_user),range(num_server+1)):
-        obj += W[u,s-1] * C[u,s-1] * X[(u,s-1)]
+        obj += W[u,s-1] * C[u,s-1] * X[(u,s-1)] * data_mu[u]
     prob += obj
 
     status = prob.solve(lp.PULP_CBC_CMD(msg=0))
@@ -63,7 +67,7 @@ def offline_optimal_action(W, mu):
     rwd = 0
     
     for u in range(num_user):
-        rwd += W[u, int(action[u])]* C[u,int(action[u])]
+        rwd += W[u, int(action[u])]* C[u,int(action[u])] * data_mu[u]
         
     new_action = []
     for i in range(action.shape[0]):
@@ -114,9 +118,17 @@ def sweep_init_next(lst, num_svrs):
     
     return lst
 
-def expected_reward(arms, mus, w):
+def expected_reward(arms, mus, w, data_mu = None):
+    
+    num_user = mus[:,0].shape[0]
+    num_server = mus[0,:].shape[0]
+    
+    if data_mu is None:
+        data_mu = np.ones(num_user)
+    
     exp_mus = np.zeros(len(arms))
     for i in range(len(arms)):
-        exp_mus[i] = w[i, arms[i]]* mus[i, arms[i]]
+        if arms[i] >= 0:
+            exp_mus[i] = w[i, arms[i]]* mus[i, arms[i]] * data_mu[i]
         
     return np.sum(exp_mus)

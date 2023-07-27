@@ -94,7 +94,7 @@ def update_user_info(Users, arms_list, reserve_id_dict,reserve_max_val_dict ,
     # update UCB information from user 
     for u in range(len(Users)):
         arm_id = arms_list[u]
-        reward = reward_dict[arm_id]
+        reward = reward_dict[arm_id][u]
         collision_flag = collision_flag_dict[arm_id]
         max_reward = reserve_max_val_dict[arm_id]
         wait_time = reserve_time_dict[arm_id]
@@ -105,20 +105,29 @@ def update_user_info(Users, arms_list, reserve_id_dict,reserve_max_val_dict ,
     return
 
 
-def expected_reward_collision_sensing(arms, mus, w):
+def expected_reward_collision_sensing(arms, mus, w, data_mu = None, soft_collision = True):
     exp_mus = np.zeros(len(arms)) # arms - each element is user, and value is server they pull
     collision_counter = 0
+    num_servers =  mus.shape[1]
+    
+    if data_mu is None:
+        data_mu = np.ones(mus.shape[0])
+        
     
     for i in range(len(arms)):
-        num_simul_pulls = np.argwhere(np.array(arms)==arms[i]).flatten().shape[0]
-        if num_simul_pulls == 1:
-            exp_mus[i] = w[i, arms[i]]* mus[i, arms[i]]
-        else:            
-            # Randomly select one user to receive the reward and distribute it among all simultaneous pulls
-            reward = 1 / num_simul_pulls * w[i, arms[i]] * mus[i, arms[i]]
-#             for j in np.argwhere(np.array(arms) == arms[i]).flatten():
-            exp_mus[i] += reward
-            collision_counter += 1
+        
+        if arms[i] >= 0 and arms[i] < num_servers:
+        
+            num_simul_pulls = np.argwhere(np.array(arms)==arms[i]).flatten().shape[0]
+            if num_simul_pulls == 1:
+                exp_mus[i] = w[i, arms[i]]* mus[i, arms[i]] * data_mu[i]
+            else:            
+                if soft_collision: # Here collision doesn't lead to loss of reward
+                    # Randomly select one user to receive the reward and distribute it among all simultaneous pulls
+                    reward = 1 / num_simul_pulls * w[i, arms[i]] * mus[i, arms[i]] * data_mu[i]
+                    exp_mus[i] += reward                    
+                collision_counter += 1
+                
         
     return np.sum(exp_mus), collision_counter
 
@@ -132,10 +141,13 @@ def get_user_locs(Users):
 # Alter to 
 def explore_rounds(Users, num_users, Servers, mu, regret, collision_count, 
                    optimal_reward = None, usr_move_flag = False, rounds=1,
-                   skip_optimal = False):
+                   skip_optimal = False, data_mu = None):
 
     arms = list(range(num_users)) 
     num_svrs = len(Servers)
+    
+    if data_mu is None:
+        data_mu = np.ones(num_users)
     
     for j in range(rounds):
         for i in range(num_svrs):
@@ -145,12 +157,12 @@ def explore_rounds(Users, num_users, Servers, mu, regret, collision_count,
                 temp_rwd = 10
                 optimal = arms, temp_rwd
             else:
-                optimal = offline_optimal_action(w, mu)
+                optimal = offline_optimal_action(w, mu, data_mu)
             
             if optimal_reward is not None:
                 optimal_reward[j*(num_svrs) + i] = optimal[1]
             
-            reward_exp_now, collision_count[j*(num_svrs) + i] = expected_reward_collision_sensing(arms, mu, w)
+            reward_exp_now, collision_count[j*(num_svrs) + i] = expected_reward_collision_sensing(arms, mu, w, data_mu)
             regret[j*(num_svrs) + i] = optimal[1] - reward_exp_now
 
             svr_res = sort_server_results(arms, Servers, Users)
@@ -162,12 +174,54 @@ def explore_rounds(Users, num_users, Servers, mu, regret, collision_count,
     
     return
     
+def explore_rounds2(Users, num_users, Servers, mu, regret, collision_count, 
+                   optimal_reward=None, usr_move_flag=False, rounds=1,
+                   skip_optimal=False, data_mu=None):
+
+    num_arms = len(Servers)
+    num_users_per_arm = min(num_users, num_arms)  # Number of users per arm (subset of users)
+
+    if data_mu is None:
+        data_mu = np.ones(num_users)
+
+    for j in range(rounds):
+        selected_users = np.random.choice(num_users, num_users_per_arm, replace=False)  # Randomly select users
+
+        for i, server in enumerate(Servers):
+            arms = selected_users[i * num_users_per_arm: (i + 1) * num_users_per_arm]  # Users for this arm
+
+            w = obtain_w(Users, num_users, num_arms)
+
+            if skip_optimal:
+                temp_rwd = 10
+                optimal = arms, temp_rwd
+            else:
+                optimal = offline_optimal_action(w, mu, data_mu)
+
+            if optimal_reward is not None:
+                optimal_reward[j * num_arms + i] = optimal[1]
+
+            reward_exp_now, collision_count[j * num_arms + i] = expected_reward_collision_sensing(arms, mu, w, data_mu)
+            regret[j * num_arms + i] = optimal[1] - reward_exp_now
+
+            svr_res = sort_server_results(arms, Servers, Users)
+            update_user_info(Users, arms, svr_res[0], svr_res[1], svr_res[2], svr_res[3], svr_res[4], svr_res[5])
+            if usr_move_flag:
+                update_user_locs(Users)
+
+    return
+
+    
 def play_round(Users, Servers, mu, regret, collision_count, 
                usr_move_flag = False, reservation_mode = True, debugger = False, optimal = None, t = None,
-               w = None, arms_override = None):
+               w = None, arms_override = None, data_mu = None, soft_collision = True):
     
     num_users = len(Users)
     num_svrs = len(Servers)
+    
+    if data_mu is None:
+        data_mu = np.ones(num_users)
+    
     if t is None:
         t = int(np.sum(Users[0].pulls))
     
@@ -175,7 +229,7 @@ def play_round(Users, Servers, mu, regret, collision_count,
         w = obtain_w(Users, num_users, num_svrs)
     
     if optimal == None:
-        optimal = offline_optimal_action(w, mu)
+        optimal = offline_optimal_action(w, mu, data_mu)
     
     if arms_override is not None:
         arms = arms_override
@@ -183,7 +237,7 @@ def play_round(Users, Servers, mu, regret, collision_count,
         arms = get_arms_list(Users)
     
     
-    reward_exp_now, collision_count[t] = expected_reward_collision_sensing(arms, mu, w)
+    reward_exp_now, collision_count[t] = expected_reward_collision_sensing(arms, mu, w, data_mu, soft_collision)
     regret[t] = optimal[1] - reward_exp_now
     svr_res = sort_server_results(arms, Servers, Users)
     update_user_info(Users, arms, svr_res[0], svr_res[1], svr_res[2], svr_res[3], svr_res[4], 
