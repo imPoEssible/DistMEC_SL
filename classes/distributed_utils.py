@@ -174,42 +174,6 @@ def explore_rounds(Users, num_users, Servers, mu, regret, collision_count,
     
     return
     
-def explore_rounds2(Users, num_users, Servers, mu, regret, collision_count, 
-                   optimal_reward=None, usr_move_flag=False, rounds=1,
-                   skip_optimal=False, data_mu=None):
-
-    num_arms = len(Servers)
-    num_users_per_arm = min(num_users, num_arms)  # Number of users per arm (subset of users)
-
-    if data_mu is None:
-        data_mu = np.ones(num_users)
-
-    for j in range(rounds):
-        selected_users = np.random.choice(num_users, num_users_per_arm, replace=False)  # Randomly select users
-
-        for i, server in enumerate(Servers):
-            arms = selected_users[i * num_users_per_arm: (i + 1) * num_users_per_arm]  # Users for this arm
-
-            w = obtain_w(Users, num_users, num_arms)
-
-            if skip_optimal:
-                temp_rwd = 10
-                optimal = arms, temp_rwd
-            else:
-                optimal = offline_optimal_action(w, mu, data_mu)
-
-            if optimal_reward is not None:
-                optimal_reward[j * num_arms + i] = optimal[1]
-
-            reward_exp_now, collision_count[j * num_arms + i] = expected_reward_collision_sensing(arms, mu, w, data_mu)
-            regret[j * num_arms + i] = optimal[1] - reward_exp_now
-
-            svr_res = sort_server_results(arms, Servers, Users)
-            update_user_info(Users, arms, svr_res[0], svr_res[1], svr_res[2], svr_res[3], svr_res[4], svr_res[5])
-            if usr_move_flag:
-                update_user_locs(Users)
-
-    return
 
     
 def play_round(Users, Servers, mu, regret, collision_count, 

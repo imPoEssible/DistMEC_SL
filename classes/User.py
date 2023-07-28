@@ -161,10 +161,13 @@ class User():
     
     def next_loc(self):
         # Update user location based on markov chain
+        prior_loc = copy.deepcopy(self.usr_place)
+        
         weights = self.P[self.usr_place]
         population = range(weights.shape[0])
         self.usr_place =  random.choices(population, weights)[0]
         self.expected_time_true = self.get_expected_time()
+        
         
     def get_expected_time(self):
         # Get number of expected ts user will stay at this location
@@ -208,6 +211,13 @@ class User():
     def choose_arm(self):
         # Choose an arm to pull based on collision restriction and UCB info
         
+        
+        # Mobility lead to sticky
+        if self.svr_stick_idx is not None:
+            new_scale = self.reward_scale[self.usr_place, self.svr_stick_idx]
+            if new_scale == 0:
+                self.svr_stick_idx = None
+        
         if self.svr_stick_idx is None:
             if self.mode is "blind": 
                 ucb_scaled =  self.reward_scale[self.usr_place] * self.ucb_raw * self.data_mu
@@ -231,7 +241,7 @@ class User():
     def receive_reward(self, arm_id, reward, collision_flag, max_reward, wait_time, chosen_idx,
                        random_served_idx, reservation_mode = True):
 
-        scale = self.reward_scale[self.usr_place,arm_id] + 0.00001
+        scale = self.reward_scale[self.usr_place,arm_id] #  + 0.00001
         self.pulls[arm_id] += 1
 #         self.param_summed[arm_id] += reward[self.idx]/scale
         self.param_summed[arm_id] += reward
